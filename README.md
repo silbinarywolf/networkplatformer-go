@@ -38,6 +38,6 @@ go build && ./networkplatformer-go.exe
 
 Build web client (requires GopherJS is installed)
 ```
-GOOES=linux gopherjs build
+GOOS=linux gopherjs build
 ```
 Then open "index.html" in your browser of choice to run it. (Tested Chrome and Firefox)
