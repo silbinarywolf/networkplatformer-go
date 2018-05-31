@@ -1,0 +1,6 @@
+syntax = "proto3";
+package netmsg;
+
+message DisconnectPlayer {
+    int32 ClientSlot = 1;
+}

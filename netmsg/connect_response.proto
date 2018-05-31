@@ -1,0 +1,8 @@
+syntax = "proto3";
+package netmsg;
+
+message ConnectResponse {
+	int32 ClientSlot = 1;
+    double X = 2;
+    double Y = 3;
+}
