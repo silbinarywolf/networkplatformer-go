@@ -35,7 +35,7 @@ RecvMsgLoop:
 			// Create player instance
 			char := &Char{
 				X: float64(rand.Int63n(90) + 130),
-				Y: float64(40 - rand.Int63n(30)),
+				Y: float64(380),
 			}
 
 			// Create client
