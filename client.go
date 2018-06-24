@@ -5,7 +5,7 @@ import (
 	"time"
 
 	"github.com/gogo/protobuf/proto"
-	"github.com/silbinarywolf/networkplatformer-go/netclient"
+	"github.com/silbinarywolf/networkplatformer-go/gameclient"
 	"github.com/silbinarywolf/networkplatformer-go/netmsg"
 )
 
@@ -20,13 +20,13 @@ var (
 )
 
 type Client struct {
-	*netclient.Client
+	*gameclient.Client
 	clientSlots []*Char
 }
 
 func NewClient() *Client {
 	server := &Client{
-		Client:      netclient.NewClient(),
+		Client:      gameclient.NewClient(),
 		clientSlots: make([]*Char, maxClients),
 	}
 	return server

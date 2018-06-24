@@ -1,4 +1,4 @@
-package netserv
+package gameserver
 
 import (
 	"errors"
@@ -54,7 +54,18 @@ func (s *Server) Listen() {
 	println("Listening server...")
 	err := http.ListenAndServe(s.addr, nil)
 	if err != nil {
-		println("ListenAndServe: ", err)
+		println("Failed to listen:", err.Error())
+	}
+}
+
+func (s *Server) ListenTLS(sslCert string, sslKey string) {
+	http.HandleFunc("/ws", func(w http.ResponseWriter, r *http.Request) {
+		s.serveWs(w, r)
+	})
+	println("Listening server...")
+	err := http.ListenAndServeTLS(s.addr, sslCert, sslKey, nil)
+	if err != nil {
+		println("Failed to listen:", err.Error())
 	}
 }
 
@@ -64,7 +75,7 @@ func (s *Server) ChUnregister() chan *Client { return s.unregister }
 
 func (s *Server) ChBroadcast() chan Message { return s.broadcast }
 
-func (s *Server) GetMaxClients() int { return len(s.clientSlots) }
+func (s *Server) GetMaxClients() int32 { return int32(len(s.clientSlots)) }
 
 func (s *Server) GetClients() map[*Client]bool { return s.clients }
 
@@ -117,9 +128,9 @@ func (s *Server) serveWs(w http.ResponseWriter, r *http.Request) {
 	println("Client connected!")
 }
 
-func (s *Server) getNextFreeClientSlot() (int, error) {
+func (s *Server) getNextFreeClientSlot() (int32, error) {
 	maxClients := s.GetMaxClients()
-	for i := 0; i < maxClients; i++ {
+	for i := int32(0); i < maxClients; i++ {
 		if !s.clientSlots[i] {
 			return i, nil
 		}

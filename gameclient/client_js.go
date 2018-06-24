@@ -1,10 +1,9 @@
 // +build js
 
-package netclient
+package gameclient
 
 import (
 	"net"
-	"time"
 
 	"github.com/gopherjs/websocket"
 )
@@ -32,30 +31,49 @@ func (c *Client) Dial(addr string) error {
 		return err
 	}
 	c.conn = conn
-	c.conn.SetWriteDeadline(time.Now().Add(writeWait))
+	return nil
+}
+
+func (c *Client) DialTLS(addr string) error {
+	conn, err := websocket.Dial("wss://" + addr + "/ws") // Blocks until connection is established.
+	if err != nil {
+		// handle error
+		return err
+	}
+	c.conn = conn
 	return nil
 }
 
 func (c *Client) Listen() error {
-	defer c.conn.Close()
 	err := c.readPump() // this is blocking
 	c.disconnect <- true
+	c.conn.Close()
 	return err
 }
 
 func (c *Client) SendMessage(message []byte) {
 	// NOTE(Jake): 2018-05-27
 	//
-	// This is not blocking, at least for JavaScript impl.
+	// This is not blocking, at least for JavaScript impl. of Websocket.
 	//
-	c.conn.SetWriteDeadline(time.Now().Add(writeWait))
+	// We also don't need to add a write deadline because its non-blocking.
+	// (this function returns nil)
+	//
+	//c.conn.SetWriteDeadline(time.Now().Add(writeWait))
 	c.conn.Write(message)
 }
 
 func (c *Client) readPump() error {
 	conn := c.conn
 	for {
-		conn.SetReadDeadline(time.Now().Add(pongWait))
+		// NOTE(Jake): 2018-06-20
+		//
+		// Disabling this in hopes that it fixes timeout issues
+		// on the server. JavaScript impl. might not need this
+		// and might just close automatically after X amount of time.
+		//
+		//conn.SetReadDeadline(time.Now().Add(pongWait))
+
 		// todo(Jake): 2018-05-27
 		//
 		// Perhaps profile / figure out how keep allocations here low?

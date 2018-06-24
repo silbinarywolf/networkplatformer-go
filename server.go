@@ -6,8 +6,8 @@ import (
 	"time"
 
 	"github.com/gogo/protobuf/proto"
+	"github.com/silbinarywolf/networkplatformer-go/gameserver"
 	"github.com/silbinarywolf/networkplatformer-go/netmsg"
-	"github.com/silbinarywolf/networkplatformer-go/netserv"
 )
 
 var (
@@ -15,12 +15,12 @@ var (
 )
 
 type Server struct {
-	*netserv.Server
+	*gameserver.Server
 }
 
 func NewServer() *Server {
 	server := &Server{
-		Server: netserv.NewServer("/abgame"),
+		Server: gameserver.NewServer("/abgame"),
 	}
 	return server
 }

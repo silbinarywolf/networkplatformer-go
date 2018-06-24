@@ -1,4 +1,4 @@
-package netclient
+package gameclient
 
 import "time"
 

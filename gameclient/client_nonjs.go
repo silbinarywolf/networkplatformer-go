@@ -1,75 +1,57 @@
-// Copyright 2013 The Gorilla WebSocket Authors. All rights reserved.
-// Use of this source code is governed by a BSD-style
-// license that can be found in the LICENSE file.
+// +build darwin freebsd linux windows
+// +build !js
+// +build !android
+// +build !ios
 
-package netserv
+package gameclient
 
 import (
-	"net/http"
+	"log"
 	"time"
 
 	"github.com/gorilla/websocket"
 )
 
-const (
-	// Time allowed to write a message to the peer.
-	writeWait = 1000 * time.Millisecond
-
-	// Time allowed to read the next pong message from the peer.
-	pongWait = 60 * time.Second
-
-	// Send pings to peer with this period. Must be less than pongWait.
-	pingPeriod = (pongWait * 9) / 10
-
-	// Maximum message size allowed from peer.
-	maxMessageSize = 128
-)
-
-var upgrader = websocket.Upgrader{
-	ReadBufferSize:  1024,
-	WriteBufferSize: 1024,
-	CheckOrigin: func(*http.Request) bool {
-		// todo(Jake): Make sure this URL is validated.
-		return true
-	},
-}
-
-type Message struct {
-	client *Client
-	data   []byte
-}
-
-func (message *Message) Client() *Client { return message.client }
-func (message *Message) Data() []byte    { return message.data }
-
-// Client is a middleman between the websocket connection and the hub.
 type Client struct {
-	server *Server
-
-	// The websocket connection.
+	clientShared
 	conn *websocket.Conn
 
-	// Buffered channel of outbound messages.
+	// Outbound messages to the server.
 	send chan []byte
-
-	// Client slot
-	clientSlot int
-
-	// Arbitrary data for user-code use. Store the related player entity, etc.
-	data interface{}
 }
 
-func (c *Client) SetData(data interface{}) {
-	c.data = data
+func NewClient() *Client {
+	return &Client{
+		clientShared: newClientShared(),
+		conn:         nil,
+		send:         make(chan []byte, 256),
+	}
 }
 
-func (c *Client) Data() interface{} {
-	return c.data
+func (c *Client) Dial(addr string) error {
+	conn, _, err := websocket.DefaultDialer.Dial("ws://"+addr+"/ws", nil)
+	if err != nil {
+		return err
+	}
+	c.conn = conn
+	return nil
 }
 
-func (c *Client) ClientSlot() int {
-	return c.clientSlot
+func (c *Client) DialTLS(addr string) error {
+	conn, _, err := websocket.DefaultDialer.Dial("wss://"+addr+"/ws", nil)
+	if err != nil {
+		return err
+	}
+	c.conn = conn
+	return nil
 }
+
+func (c *Client) Listen() {
+	go c.writePump()
+	go c.readPump()
+}
+
+func (c *Client) ChRecv() chan []byte { return c.recv }
 
 func (c *Client) SendMessage(message []byte) {
 	c.send <- message
@@ -82,8 +64,8 @@ func (c *Client) SendMessage(message []byte) {
 // reads from this goroutine.
 func (c *Client) readPump() {
 	defer func() {
-		c.server.unregister <- c
 		c.conn.Close()
+		c.disconnect <- true
 	}()
 	c.conn.SetReadLimit(maxMessageSize)
 	c.conn.SetReadDeadline(time.Now().Add(pongWait))
@@ -92,15 +74,11 @@ func (c *Client) readPump() {
 		_, buf, err := c.conn.ReadMessage()
 		if err != nil {
 			if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) {
-				println("read pump error: ", err)
+				log.Printf("error: %v", err)
 			}
 			break
 		}
-		//message = bytes.TrimSpace(bytes.Replace(message, newline, space, -1))
-		c.server.broadcast <- Message{
-			client: c,
-			data:   buf,
-		}
+		c.recv <- buf
 	}
 }
 
@@ -113,15 +91,15 @@ func (c *Client) writePump() {
 	ticker := time.NewTicker(pingPeriod)
 	defer func() {
 		ticker.Stop()
-		c.server.unregister <- c
 		c.conn.Close()
+		c.disconnect <- true
 	}()
 	for {
 		select {
 		case message, ok := <-c.send:
 			c.conn.SetWriteDeadline(time.Now().Add(writeWait))
 			if !ok {
-				// The server closed the channel.
+				// The hub closed the channel.
 				c.conn.WriteMessage(websocket.CloseMessage, []byte{})
 				return
 			}
@@ -133,7 +111,6 @@ func (c *Client) writePump() {
 			w.Write(message)
 
 			if err := w.Close(); err != nil {
-				println("Client disconnected. Err = ", err)
 				return
 			}
 		case <-ticker.C:
